@@ -27,7 +27,7 @@ def get_parser():
     parser.add_argument('--model', default='resnet', type=str, help='model',
                         choices=['resnet', 'densenet', 'vgg'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
-                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound',
+                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound', 'cap',
                                  ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -131,7 +131,7 @@ def build_model(args, device, ckpt=None):
 
 def create_optimizer(args, model_params):
     args.optim = args.optim.lower()
-    if args.optim == 'sgd':
+    if args.optim in ['sgd', 'cap']:
         return optim.SGD(model_params, args.lr, momentum=args.momentum,
                          weight_decay=args.weight_decay)
     elif args.optim == 'adam':
@@ -193,6 +193,14 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
         newton_cap_log.append(
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
+
+        # apply newton cap
+        if args.optim == "cap":
+            nc_ratio = - delt_dot_grad / loss.item()
+            if nc_ratio > 1:
+                for p, param in enumerate(net.parameters()):
+                    param.data /= nc_ratio
+                    param.data += old_data[p] * (1 - 1/nc_ratio)
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
