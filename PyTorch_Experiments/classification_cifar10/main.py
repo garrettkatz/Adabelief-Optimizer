@@ -18,7 +18,7 @@ from optimizers import *
 
 import probe
 
-dbg = True
+dbg = False
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -168,6 +168,10 @@ def nump(tensor, device):
     if device == 'cuda': return tensor.detach().cpu().numpy() # makes a copy
     return tensor.detach().numpy().copy()
 
+def torc(ndarray, device):
+    if device == 'cuda': return torch.tensor(ndarray).cuda()
+    return torch.tensor(ndarray)
+
 def train(net, epoch, device, data_loader, optimizer, criterion, args):
     print('\nEpoch: %d' % epoch)
     net.train()
@@ -201,7 +205,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
                 print("  enforcing cap: ratio = %f" % nc_ratio)
                 for p, param in enumerate(net.parameters()):
                     param.data /= nc_ratio
-                    param.data += old_data[p] * (1 - 1/nc_ratio)
+                    param.data += torc(old_data[p] * (1 - 1/nc_ratio), device)
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
