@@ -1,6 +1,8 @@
 """Train CIFAR10 with PyTorch."""
 from __future__ import print_function
 
+import numpy as np
+
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torchvision
@@ -13,6 +15,10 @@ from models import *
 from adabound import AdaBound
 from torch.optim import Adam, SGD
 from optimizers import *
+
+import probe
+
+dbg = False
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -47,12 +53,18 @@ def get_parser():
 
 def build_dataset(args):
     print('==> Preparing data..')
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+    if dbg:
+        transform_train = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+    else:
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
 
     transform_test = transforms.Compose([
         transforms.ToTensor(),
@@ -61,7 +73,7 @@ def build_dataset(args):
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True,
                                             transform=transform_train)
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=True,
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=not dbg,
                                                num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True,
@@ -149,29 +161,50 @@ def create_optimizer(args, model_params):
     else:
         print('Optimizer not found')
 
+        # plot the list of alpha and norm(delta) along with the learning curve
+
+def nump(tensor, device):
+    if device == 'cuda': return tensor.detach().cpu().numpy() # makes a copy
+    return tensor.detach().numpy().copy()
+
 def train(net, epoch, device, data_loader, optimizer, criterion, args):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
     correct = 0
     total = 0
+    newton_cap_log = []
     for batch_idx, (inputs, targets) in enumerate(data_loader):
+        print("batch %d" % batch_idx)
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
+
+        grad = [nump(param.grad, device) for param in net.parameters()]
+        old_data = [nump(param.data, device) for param in net.parameters()]
         optimizer.step()
+        new_data = [nump(param.data, device) for param in net.parameters()]
+            
+        delt = [nd - od for (nd, od) in zip(new_data, old_data)]
+        delt_sqnorm = sum([(d**2).sum() for d in delt])
+        grad_sqnorm = sum([(g**2).sum() for g in grad])
+        delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
+        newton_cap_log.append(
+            (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-
+        
+        if dbg and batch_idx == 1: break
+        
     accuracy = 100. * correct / total
     print('train acc %.3f' % accuracy)
 
-    return accuracy
+    return accuracy, newton_cap_log
 
 
 def test(net, device, data_loader, criterion):
@@ -189,6 +222,8 @@ def test(net, device, data_loader, criterion):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
+
+            if dbg and batch_idx == 1: break
 
     accuracy = 100. * correct / total
     print(' test acc %.3f' % accuracy)
@@ -216,7 +251,7 @@ def main():
                               eps = args.eps,
                               reset=args.reset, run=args.run,
                               weight_decay = args.weight_decay)
-    print('ckpt_name')
+    print(ckpt_name)
     if args.resume:
         ckpt = load_checkpoint(ckpt_name)
         best_acc = ckpt['acc']
@@ -226,12 +261,14 @@ def main():
         curve = torch.load(curve)
         train_accuracies = curve['train_acc']
         test_accuracies = curve['test_acc']
+        newton_cap_logs = curve['nc_logs']
     else:
         ckpt = None
         best_acc = 0
         start_epoch = -1
         train_accuracies = []
         test_accuracies = []
+        newton_cap_logs = []
 
     net = build_model(args, device, ckpt=ckpt)
     criterion = nn.CrossEntropyLoss()
@@ -239,13 +276,14 @@ def main():
     #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.decay_epoch, gamma=0.1,
     #                                      last_epoch=start_epoch)
 
-    
+    probe_points = [0,5,10,15,20,30,40,60,80,100,125,149]
 
     for epoch in range(start_epoch + 1, args.total_epoch):
+        # if epoch == start_epoch + 3: break
         start = time.time()
         #scheduler.step()
         adjust_learning_rate(optimizer, epoch, step_size=args.decay_epoch, gamma=args.lr_gamma, reset = args.reset)
-        train_acc = train(net, epoch, device, train_loader, optimizer, criterion, args)
+        train_acc, nclog = train(net, epoch, device, train_loader, optimizer, criterion, args)
         test_acc = test(net, device, test_loader, criterion)
         end = time.time()
         print('Time: {}'.format(end-start))
@@ -262,13 +300,21 @@ def main():
                 os.mkdir('checkpoint')
             torch.save(state, os.path.join('checkpoint', ckpt_name))
             best_acc = test_acc
+        
+        # Save probe point
+        if epoch in probe_points:
+            probe.save(ckpt_name, epoch, net, optimizer)
 
         train_accuracies.append(train_acc)
         test_accuracies.append(test_acc)
+        newton_cap_logs.append(nclog)
         if not os.path.isdir('curve'):
             os.mkdir('curve')
-        torch.save({'train_acc': train_accuracies, 'test_acc': test_accuracies},
+        torch.save({'train_acc': train_accuracies, 'test_acc': test_accuracies,
+                   'nc_logs': newton_cap_logs},
                    os.path.join('curve', ckpt_name))
+       
+        if dbg and epoch == 2: break
 
 if __name__ == '__main__':
     main()
