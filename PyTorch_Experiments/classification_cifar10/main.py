@@ -18,7 +18,7 @@ from optimizers import *
 
 import probe
 
-dbg = False
+dbg = True
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -90,6 +90,7 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, final_lr=0.1, momentu
                   reset = False, run = 0, weight_decouple = False, rectify = False):
     name = {
         'sgd': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
+        'cap': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
         'adam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'fromage': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'radam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
@@ -175,7 +176,6 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
     total = 0
     newton_cap_log = []
     for batch_idx, (inputs, targets) in enumerate(data_loader):
-        print("batch %d" % batch_idx)
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
@@ -198,6 +198,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         if args.optim == "cap":
             nc_ratio = - delt_dot_grad / loss.item()
             if nc_ratio > 1:
+                print("  enforcing cap: ratio = %f" % nc_ratio)
                 for p, param in enumerate(net.parameters()):
                     param.data /= nc_ratio
                     param.data += old_data[p] * (1 - 1/nc_ratio)
@@ -207,6 +208,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
         
+        print("epoch %d, batch %d (%f)" % (epoch, batch_idx, correct / total))
         if dbg and batch_idx == 1: break
         
     accuracy = 100. * correct / total
