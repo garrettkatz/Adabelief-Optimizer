@@ -27,7 +27,7 @@ def get_parser():
     parser.add_argument('--model', default='resnet', type=str, help='model',
                         choices=['resnet', 'densenet', 'vgg'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
-                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound', 'cap',
+                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound', 'cap', 'abcap',
                                  ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -96,6 +96,7 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, final_lr=0.1, momentu
         'radam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'adabelief': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
+        'abcap': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
         'adabound': 'lr{}-betas{}-{}-final_lr{}-gamma{}-wdecay{}-run{}'.format(lr, beta1, beta2, final_lr, gamma,weight_decay, run),
         'yogi':'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,weight_decay, run),
         'msvag': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,
@@ -146,7 +147,7 @@ def create_optimizer(args, model_params):
     elif args.optim == 'adamw':
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
-    elif args.optim == 'adabelief':
+    elif args.optim in ['adabelief', 'abcap']:
         return AdaBelief(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'yogi':
@@ -199,7 +200,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
 
         # apply newton cap
-        if args.optim == "cap":
+        if args.optim in ['cap', 'abcap']:
             nc_ratio = - delt_dot_grad / loss.item()
             if nc_ratio > 1:
                 print("  enforcing cap: ratio = %f" % nc_ratio)
