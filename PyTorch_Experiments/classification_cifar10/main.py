@@ -180,6 +180,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
     correct = 0
     total = 0
     newton_cap_log = []
+    n = args.batchsize
     for batch_idx, (inputs, targets) in enumerate(data_loader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -201,12 +202,14 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
 
         # apply newton cap
         if args.optim in ['cap', 'abcap']:
-            nc_ratio = - delt_dot_grad / loss.item()
-            if nc_ratio > 1:
+            nc_ratio = - loss.item() / delt_dot_grad
+            nc_ratio *= n / n-1 # bias adjustment
+            if nc_ratio < 1:
                 print("  enforcing cap: ratio = %f" % nc_ratio)
                 for p, param in enumerate(net.parameters()):
-                    param.data /= nc_ratio
-                    param.data += torc(old_data[p] * (1 - 1/nc_ratio), device)
+                    param.data *= nc_ratio
+                    param.data += torc(old_data[p] * (1 - nc_ratio), device)
+            
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
