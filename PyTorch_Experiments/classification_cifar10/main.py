@@ -205,7 +205,8 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
             nc_ratio = - loss.item() / delt_dot_grad
             nc_ratio *= n / (n-1) # bias adjustment
             if nc_ratio < 1:
-                print("  enforcing cap: ratio = %f" % nc_ratio)
+                print("  enforcing cap: ratio = %f (n=%d)" % (nc_ratio, n))
+                print(inputs.shape)
                 for p, param in enumerate(net.parameters()):
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
