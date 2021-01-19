@@ -203,7 +203,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         # apply newton cap
         if args.optim in ['capb', 'abcapb']:
             nc_ratio = - loss.item() / delt_dot_grad
-            nc_ratio *= n / n-1 # bias adjustment
+            nc_ratio *= n / (n-1) # bias adjustment
             if nc_ratio < 1:
                 print("  enforcing cap: ratio = %f" % nc_ratio)
                 for p, param in enumerate(net.parameters()):
