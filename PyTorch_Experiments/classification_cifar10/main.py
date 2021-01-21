@@ -18,7 +18,7 @@ from optimizers import *
 
 import probe
 
-dbg = False
+dbg = not torch.cuda.is_available() # True
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -27,7 +27,7 @@ def get_parser():
     parser.add_argument('--model', default='resnet', type=str, help='model',
                         choices=['resnet', 'densenet', 'vgg'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
-                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound', 'capb', 'abcapb',
+                        choices=['sgd', 'adam', 'adamw', 'adabelief', 'yogi', 'msvag', 'radam', 'fromage', 'adabound', 'capi', 'abcapi',
                                  ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -90,13 +90,13 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, final_lr=0.1, momentu
                   reset = False, run = 0, weight_decouple = False, rectify = False):
     name = {
         'sgd': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
-        'capb': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
+        'capi': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
         'adam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'fromage': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'radam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
         'adabelief': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
-        'abcapb': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
+        'abcapi': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
         'adabound': 'lr{}-betas{}-{}-final_lr{}-gamma{}-wdecay{}-run{}'.format(lr, beta1, beta2, final_lr, gamma,weight_decay, run),
         'yogi':'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,weight_decay, run),
         'msvag': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,
@@ -133,7 +133,7 @@ def build_model(args, device, ckpt=None):
 
 def create_optimizer(args, model_params):
     args.optim = args.optim.lower()
-    if args.optim in ['sgd', 'capb']:
+    if args.optim in ['sgd', 'capi']:
         return optim.SGD(model_params, args.lr, momentum=args.momentum,
                          weight_decay=args.weight_decay)
     elif args.optim == 'adam':
@@ -147,7 +147,7 @@ def create_optimizer(args, model_params):
     elif args.optim == 'adamw':
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
-    elif args.optim in ['adabelief', 'abcapb']:
+    elif args.optim in ['adabelief', 'abcapi']:
         return AdaBelief(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'yogi':
@@ -202,13 +202,15 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
 
         # apply newton cap
-        if args.optim in ['capb', 'abcapb'] and loss_buffer is not None and delt_dot_grad < 0:
+        if args.optim in ['capi', 'abcapi'] and loss_buffer is not None and delt_dot_grad < 0:
             nc_ratio = - loss_buffer / delt_dot_grad
             if nc_ratio < 1:
                 print("  enforcing cap: ratio = %f (n=%d)" % (nc_ratio, n))
                 for p, param in enumerate(net.parameters()):
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
+            else:
+                print("  no cap: ratio = %f (n=%d)" % (nc_ratio, n))
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
