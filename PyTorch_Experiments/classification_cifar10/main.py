@@ -180,6 +180,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
     correct = 0
     total = 0
     newton_cap_log = []
+    loss_buffer = None
     n = args.batchsize
     for batch_idx, (inputs, targets) in enumerate(data_loader):
         inputs, targets = inputs.to(device), targets.to(device)
@@ -192,7 +193,7 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         old_data = [nump(param.data, device) for param in net.parameters()]
         optimizer.step()
         new_data = [nump(param.data, device) for param in net.parameters()]
-            
+
         delt = [nd - od for (nd, od) in zip(new_data, old_data)]
         delt_sqnorm = sum([(d**2).sum() for d in delt])
         grad_sqnorm = sum([(g**2).sum() for g in grad])
@@ -201,10 +202,9 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
 
         # apply newton cap
-        if args.optim in ['capb', 'abcapb']:
-            nc_ratio = - loss.item() / delt_dot_grad
-            nc_ratio *= n / (n-1) # bias adjustment
-            if 0 < nc_ratio < 1:
+        if args.optim in ['capb', 'abcapb'] and loss_buffer is not None and delt_dot_grad < 0:
+            nc_ratio = - loss_buffer / delt_dot_grad
+            if nc_ratio < 1:
                 print("  enforcing cap: ratio = %f (n=%d)" % (nc_ratio, n))
                 for p, param in enumerate(net.parameters()):
                     param.data *= nc_ratio
@@ -214,6 +214,10 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
+
+        # recalculate loss after step on current minibatch for independence
+        with torch.no_grad():
+            loss_buffer = criterion(net(inputs), targets).item()
         
         print("epoch %d, batch %d (%f)" % (epoch, batch_idx, correct / total))
         if dbg and batch_idx == 1: break
