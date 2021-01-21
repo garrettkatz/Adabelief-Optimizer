@@ -209,8 +209,8 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
                 for p, param in enumerate(net.parameters()):
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
-            else:
-                print("  no cap: ratio = %f (n=%d)" % (nc_ratio, n))
+            # else:
+            #     print("  no cap: ratio = %f (n=%d)" % (nc_ratio, n))
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
