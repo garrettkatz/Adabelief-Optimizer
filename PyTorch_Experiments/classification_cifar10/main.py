@@ -198,8 +198,6 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         delt_sqnorm = sum([(d**2).sum() for d in delt])
         grad_sqnorm = sum([(g**2).sum() for g in grad])
         delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
-        newton_cap_log.append(
-            (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
 
         # apply newton cap
         if args.optim in ['capi', 'abcapi'] and loss_buffer is not None and delt_dot_grad < 0:
@@ -211,6 +209,9 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
             # else:
             #     print("  no cap: ratio = %f (n=%d)" % (nc_ratio, n))
+
+        newton_cap_log.append(
+            (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item(), loss_buffer))
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
