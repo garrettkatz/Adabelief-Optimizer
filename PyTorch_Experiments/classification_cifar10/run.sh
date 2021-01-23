@@ -11,5 +11,8 @@
 # resnet-adabelief-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
 # CUDA_VISIBLE_DEVICES=0 python3 main.py --model resnet --optim adabelief --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005
 
-# resnet-abcapb-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
-CUDA_VISIBLE_DEVICES=0 python3 main.py --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005
+# # resnet-abcapb-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
+# CUDA_VISIBLE_DEVICES=0 python3 main.py --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005
+
+# resnet-abcapi-cl100-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
+CUDA_VISIBLE_DEVICES=0 python3 main.py --classes 100 --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005

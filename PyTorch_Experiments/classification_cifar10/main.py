@@ -24,6 +24,8 @@ def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--total_epoch', default=200, type=int, help='Total number of training epochs')
     parser.add_argument('--decay_epoch', default=150, type=int, help='Number of epochs to decay learning rate')
+    parser.add_argument('--classes', default=10, type=int, help='number of classes',
+                        choices=[10, 100])
     parser.add_argument('--model', default='resnet', type=str, help='model',
                         choices=['resnet', 'densenet', 'vgg'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
@@ -70,13 +72,16 @@ def build_dataset(args):
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
+    
+    if args.classes == 10: dataset = torchvision.datasets.CIFAR10
+    if args.classes == 100: dataset = torchvision.datasets.CIFAR100
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True,
+    trainset = dataset(root='./data', train=True, download=True,
                                             transform=transform_train)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=not dbg,
                                                num_workers=2)
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True,
+    testset = dataset(root='./data', train=False, download=True,
                                            transform=transform_test)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batchsize, shuffle=False, num_workers=2)
 
@@ -85,22 +90,32 @@ def build_dataset(args):
     return train_loader, test_loader
 
 
-def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, final_lr=0.1, momentum=0.9,
+def get_ckpt_name(classes=10, model='resnet', optimizer='sgd', lr=0.1, final_lr=0.1, momentum=0.9,
                   beta1=0.9, beta2=0.999, gamma=1e-3, eps=1e-8, weight_decay=5e-4,
                   reset = False, run = 0, weight_decouple = False, rectify = False):
     name = {
-        'sgd': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
-        'capi': 'lr{}-momentum{}-wdecay{}-run{}'.format(lr, momentum,weight_decay, run),
-        'adam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
-        'fromage': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
-        'radam': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
-        'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(lr, beta1, beta2,weight_decay, eps, run),
-        'adabelief': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
-        'abcapi': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps, weight_decay, run),
-        'adabound': 'lr{}-betas{}-{}-final_lr{}-gamma{}-wdecay{}-run{}'.format(lr, beta1, beta2, final_lr, gamma,weight_decay, run),
-        'yogi':'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,weight_decay, run),
-        'msvag': 'lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(lr, beta1, beta2, eps,
-                                                                    weight_decay, run),
+        'sgd': 'cl{}-lr{}-momentum{}-wdecay{}-run{}'.format(
+            classes, lr, momentum,weight_decay, run),
+        'capi': 'cl{}-lr{}-momentum{}-wdecay{}-run{}'.format(
+            classes, lr, momentum,weight_decay, run),
+        'adam': 'cl{}-lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(
+            classes, lr, beta1, beta2,weight_decay, eps, run),
+        'fromage': 'cl{}-lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(
+            classes, lr, beta1, beta2,weight_decay, eps, run),
+        'radam': 'cl{}-lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(
+            classes, lr, beta1, beta2,weight_decay, eps, run),
+        'adamw': 'cl{}-lr{}-betas{}-{}-wdecay{}-eps{}-run{}'.format(
+            classes, lr, beta1, beta2,weight_decay, eps, run),
+        'adabelief': 'cl{}-lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(
+            classes, lr, beta1, beta2, eps, weight_decay, run),
+        'abcapi': 'cl{}-lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(
+            classes, lr, beta1, beta2, eps, weight_decay, run),
+        'adabound': 'cl{}-lr{}-betas{}-{}-final_lr{}-gamma{}-wdecay{}-run{}'.format(
+            classes, lr, beta1, beta2, final_lr, gamma,weight_decay, run),
+        'yogi':'cl{}-lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(
+            classes, lr, beta1, beta2, eps,weight_decay, run),
+        'msvag': 'cl{}-lr{}-betas{}-{}-eps{}-wdecay{}-run{}'.format(
+            classes, lr, beta1, beta2, eps, weight_decay, run),
     }[optimizer]
     return '{}-{}-{}-reset{}'.format(model, optimizer, name, str(reset))
 
@@ -119,7 +134,7 @@ def build_model(args, device, ckpt=None):
         'resnet': ResNet34,
         'densenet': DenseNet121,
         'vgg':vgg11,
-    }[args.model]()
+    }[args.model](args.classes)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net)
@@ -269,7 +284,8 @@ def main():
     train_loader, test_loader = build_dataset(args)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    ckpt_name = get_ckpt_name(model=args.model, optimizer=args.optim, lr=args.lr,
+    ckpt_name = get_ckpt_name(classes=args.classes,
+                              model=args.model, optimizer=args.optim, lr=args.lr,
                               final_lr=args.final_lr, momentum=args.momentum,
                               beta1=args.beta1, beta2=args.beta2, gamma=args.gamma,
                               eps = args.eps,
