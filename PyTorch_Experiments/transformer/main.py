@@ -24,7 +24,7 @@ criterion = nn.CrossEntropyLoss()
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
 
 # adabelief similar to PTB hparams
-lr = 1.0
+lr = .001
 optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
 scheduler = None
 
