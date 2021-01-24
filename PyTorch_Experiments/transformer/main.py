@@ -38,11 +38,11 @@ scheduler = None
 ckpt_name = "ab-clip.5"
 
 def nump(tensor, device):
-    if device == 'cuda': return tensor.detach().cpu().numpy() # makes a copy
+    if torch.cuda.is_available(): return tensor.detach().cpu().numpy() # makes a copy
     return tensor.detach().numpy().copy()
 
 def torc(ndarray, device):
-    if device == 'cuda': return torch.tensor(ndarray).cuda()
+    if torch.cuda.is_available(): return torch.tensor(ndarray).cuda()
     return torch.tensor(ndarray)
 
 import time
