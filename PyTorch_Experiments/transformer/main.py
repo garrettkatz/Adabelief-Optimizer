@@ -129,7 +129,7 @@ def evaluate(eval_model, data_source):
     return total_loss / (len(data_source) - 1)
 
 best_val_loss = float("inf")
-epochs = 3 # The number of epochs
+epochs = 20 # The number of epochs
 best_model = None
 
 train_losses, val_losses, nclogs = [], [], []
