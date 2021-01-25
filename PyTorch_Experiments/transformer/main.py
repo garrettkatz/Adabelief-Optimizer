@@ -30,12 +30,12 @@ criterion = nn.CrossEntropyLoss()
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
 
 # adabelief similar to PTB hparams
-do_nc = False
+do_nc = True
 clip = .5
 lr = .001
 optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
 scheduler = None
-ckpt_name = "ab-clip.5"
+ckpt_name = "ab-clip.5" + ("-nc" if do_nc else "")
 
 def nump(tensor, device):
     if torch.cuda.is_available(): return tensor.detach().cpu().numpy() # makes a copy
