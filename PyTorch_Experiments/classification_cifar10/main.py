@@ -18,7 +18,7 @@ from optimizers import *
 
 import probe
 
-dbg = not torch.cuda.is_available() # True
+dbg = not torch.cuda.is_available()
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -195,20 +195,40 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
     correct = 0
     total = 0
     newton_cap_log = []
-    loss_buffer = None
     n = args.batchsize
-    for batch_idx, (inputs, targets) in enumerate(data_loader):
+    batch_idx = -1
+    data_iter = iter(data_loader)
+    while True:
+        batch_idx += 1
+
+        old_data = [nump(param.data, device) for param in net.parameters()]
+
+        # independent loss
+        try: inputs, targets = next(data_iter)
+        except StopIteration: break
+        inputs, targets = inputs.to(device), targets.to(device)
+        with torch.no_grad(): loss_buffer = criterion(net(inputs), targets).item()
+
+        # independent gradient
+        try: inputs, targets = next(data_iter)
+        except StopIteration: break
+        inputs, targets = inputs.to(device), targets.to(device)
+        optimizer.zero_grad()
+        criterion(net(inputs), targets).backward()
+        grad = [nump(param.grad, device) for param in net.parameters()]
+
+        # optimizer step
+        try: inputs, targets = next(data_iter)
+        except StopIteration: break
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
-
-        grad = [nump(param.grad, device) for param in net.parameters()]
-        old_data = [nump(param.data, device) for param in net.parameters()]
         optimizer.step()
         new_data = [nump(param.data, device) for param in net.parameters()]
 
+        # newton cap data
         delt = [nd - od for (nd, od) in zip(new_data, old_data)]
         delt_sqnorm = sum([(d**2).sum() for d in delt])
         grad_sqnorm = sum([(g**2).sum() for g in grad])
@@ -222,8 +242,6 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
                 for p, param in enumerate(net.parameters()):
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
-            # else:
-            #     print("  no cap: ratio = %f (n=%d)" % (nc_ratio, n))
 
         newton_cap_log.append(
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item(), loss_buffer))
@@ -232,10 +250,6 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-
-        # recalculate loss after step on current minibatch for independence
-        with torch.no_grad():
-            loss_buffer = criterion(net(inputs), targets).item()
         
         print("epoch %d, batch %d (%f)" % (epoch, batch_idx, correct / total))
         if dbg and batch_idx == 1: break
