@@ -31,11 +31,11 @@ criterion = nn.CrossEntropyLoss()
 
 # adabelief similar to PTB hparams
 do_nc = True
-clip = .5
+clip = None
 lr = .1
 optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
 scheduler = None
-ckpt_name = "ab-clip.5" + ("-nc" if do_nc else "")
+ckpt_name = "ab" + ("-nc" if do_nc else "")
 
 def nump(tensor, device):
     if torch.cuda.is_available(): return tensor.detach().cpu().numpy() # makes a copy
@@ -110,7 +110,7 @@ def train():
 
         if dbg and batch == 10: break
 
-    epoch_loss /= len(train_data) - 1
+    epoch_loss /= batch
     return epoch_loss, newton_cap_log
 
 def evaluate(eval_model, data_source):
