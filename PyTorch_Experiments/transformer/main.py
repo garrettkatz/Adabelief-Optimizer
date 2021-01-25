@@ -32,7 +32,7 @@ criterion = nn.CrossEntropyLoss()
 # adabelief similar to PTB hparams
 do_nc = True
 clip = .5
-lr = .001
+lr = .1
 optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
 scheduler = None
 ckpt_name = "ab-clip.5" + ("-nc" if do_nc else "")
@@ -79,7 +79,7 @@ def train():
         if do_nc and loss_buffer is not None and delt_dot_grad < 0:
             nc_ratio = - loss_buffer / delt_dot_grad
             if nc_ratio < 1:
-                print("  enforcing cap: ratio = %f (n=%d)" % (nc_ratio, n))
+                print("  enforcing cap: ratio = %f" % nc_ratio)
                 for p, param in enumerate(model.parameters()):
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
