@@ -50,6 +50,7 @@ def get_parser():
                         help='weight decay for optimizers')
     parser.add_argument('--reset', action = 'store_true',
                         help='whether reset optimizer at learning rate decay')
+    parser.add_argument('--caprate', action='store_true')
     return parser
 
 
@@ -283,13 +284,26 @@ def test(net, device, data_loader, criterion):
 
     return accuracy
 
-def adjust_learning_rate(optimizer, epoch, step_size=150, gamma=0.1, reset = False):
-    for param_group in optimizer.param_groups:
-        if epoch % step_size==0 and epoch>0:
-            param_group['lr'] *= gamma
+def adjust_learning_rate(optimizer, epoch, step_size=150, gamma=0.1, reset = False, caprate = False):
+    if caprate:
+        # default setup used initial learning rate of 1e-3,
+        # decayed it once at epoch 150 by multiplication with gamma=.1
+        # resulting in final lr of 1e-4 = .0001
+        # using lr of form M/epoch, set M/200 = .0001
+        # then M = 200*.0001 = .02
+        gamma = .02 / (epoch+1)
+        print("Adjusting lr to %f..." % gamma)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = gamma
 
-    if  epoch % step_size==0 and epoch>0 and reset:
-        optimizer.reset()
+    else:
+
+        for param_group in optimizer.param_groups:
+            if epoch % step_size==0 and epoch>0:
+                param_group['lr'] *= gamma
+    
+        if  epoch % step_size==0 and epoch>0 and reset:
+            optimizer.reset()
 
 def main():
     parser = get_parser()
@@ -336,7 +350,7 @@ def main():
         # if epoch == start_epoch + 3: break
         start = time.time()
         #scheduler.step()
-        adjust_learning_rate(optimizer, epoch, step_size=args.decay_epoch, gamma=args.lr_gamma, reset = args.reset)
+        adjust_learning_rate(optimizer, epoch, step_size=args.decay_epoch, gamma=args.lr_gamma, reset = args.reset, caprate = args.caprate)
         train_acc, nclog = train(net, epoch, device, train_loader, optimizer, criterion, args)
         test_acc = test(net, device, test_loader, criterion)
         end = time.time()
