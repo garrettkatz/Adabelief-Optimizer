@@ -51,6 +51,7 @@ def get_parser():
     parser.add_argument('--reset', action = 'store_true',
                         help='whether reset optimizer at learning rate decay')
     parser.add_argument('--caprate', action='store_true')
+    parser.add_argument('--ind', action='store_true')
     return parser
 
 
@@ -204,19 +205,20 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
 
         old_data = [nump(param.data, device) for param in net.parameters()]
 
-        # independent loss
-        try: inputs, targets = next(data_iter)
-        except StopIteration: break
-        inputs, targets = inputs.to(device), targets.to(device)
-        with torch.no_grad(): loss_buffer = criterion(net(inputs), targets).item()
-
-        # independent gradient
-        try: inputs, targets = next(data_iter)
-        except StopIteration: break
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        criterion(net(inputs), targets).backward()
-        grad = [nump(param.grad, device) for param in net.parameters()]
+        if args.ind:
+            # independent loss
+            try: inputs, targets = next(data_iter)
+            except StopIteration: break
+            inputs, targets = inputs.to(device), targets.to(device)
+            with torch.no_grad(): loss_buffer = criterion(net(inputs), targets).item()
+    
+            # independent gradient
+            try: inputs, targets = next(data_iter)
+            except StopIteration: break
+            inputs, targets = inputs.to(device), targets.to(device)
+            optimizer.zero_grad()
+            criterion(net(inputs), targets).backward()
+            grad = [nump(param.grad, device) for param in net.parameters()]
 
         # optimizer step
         try: inputs, targets = next(data_iter)
@@ -226,6 +228,11 @@ def train(net, epoch, device, data_loader, optimizer, criterion, args):
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
+
+        if not args.ind:
+            loss_buffer = loss.item()
+            grad = [nump(param.grad, device) for param in net.parameters()]
+
         optimizer.step()
         new_data = [nump(param.data, device) for param in net.parameters()]
 
@@ -292,6 +299,8 @@ def adjust_learning_rate(optimizer, epoch, step_size=150, gamma=0.1, reset = Fal
         # using lr of form M/epoch, set M/200 = .0001
         # then M = 200*.0001 = .02
         gamma = .02 / (epoch+1)
+        # alternative: M/150 = .001, M = .150
+        gamma = .15 / (epoch+1)
         print("Adjusting lr to %f..." % gamma)
         for param_group in optimizer.param_groups:
             param_group['lr'] = gamma
