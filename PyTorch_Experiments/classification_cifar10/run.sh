@@ -25,6 +25,10 @@
 # # resnet-abcapi-cl10-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
 # CUDA_VISIBLE_DEVICES=0 python3 main.py --classes 10 --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005 --decay_epoch 60 --total_epoch 200 --caprate
 
+# # aggressive decay epoch with no independence overwork
+# # resnet-abcapi-cl10-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
+# CUDA_VISIBLE_DEVICES=0 python3 main.py --classes 10 --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005 --decay_epoch 60 --total_epoch 200
+
 # aggressive decay epoch with no independence overwork
-# resnet-abcapi-cl10-lr0.001-betas0.9-0.999-eps1e-08-wdecay0.0005-run0-resetFalse
-CUDA_VISIBLE_DEVICES=0 python3 main.py --classes 10 --model resnet --optim abcapi --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005 --decay_epoch 60 --total_epoch 200
+# control: adabelief without cap
+CUDA_VISIBLE_DEVICES=0 python3 main.py --classes 10 --model resnet --optim adabelief --lr 1e-3 --eps 1e-8 --beta1 0.9 --beta2 0.999 --momentum 0.9 --weight_decay 0.0005 --decay_epoch 60 --total_epoch 200
