@@ -401,6 +401,14 @@ Neural Network
 
 """
 
+class Flatten(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, inp):
+        # return inp.flatten()
+        return inp.reshape(inp.shape[0], -1)
+
+
 class MarioNet(nn.Module):
     """mini cnn structure
   input -> (conv2d + relu) x 3 -> flatten -> (dense + relu) x 2 -> output
@@ -422,7 +430,8 @@ class MarioNet(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.ReLU(),
-            nn.Flatten(),
+            Flatten(),
+            # nn.Flatten(),
             # nn.Linear(3136, 512),
             # nn.ReLU(),
             nn.Linear(3136, 2048),
