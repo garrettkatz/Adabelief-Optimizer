@@ -445,15 +445,18 @@ class MarioNet(nn.Module):
             # nn.Flatten(),
             # nn.Linear(3136, 512),
             # nn.ReLU(),
-            nn.Linear(2688, 2048), # read 2688 from shape mismatch error with new image size
+            nn.Linear(2688, 512), # read 2688 from shape mismatch error with new image size
             nn.ReLU(),
-            nn.Linear(2048, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, output_dim),
+            nn.Linear(512, output_dim),
+            # nn.Linear(2688, 2048), # read 2688 from shape mismatch error with new image size
+            # nn.ReLU(),
+            # nn.Linear(2048, 1024),
+            # nn.ReLU(),
+            # nn.Linear(1024, 512),
+            # nn.ReLU(),
+            # nn.Linear(512, 256),
+            # nn.ReLU(),
+            # nn.Linear(256, output_dim),
         )
 
         self.target = copy.deepcopy(self.online)
@@ -629,7 +632,7 @@ class Mario(Mario):
 class Mario(Mario):
     def __init__(self, state_dim, action_dim, save_dir):
         super().__init__(state_dim, action_dim, save_dir)
-        self.burnin = 64 #1e4  # min. experiences before training
+        self.burnin = 1e4  # min. experiences before training
         self.learn_every = 3  # no. of experiences between updates to Q_online
         self.sync_every = 1e4  # no. of experiences between Q_target & Q_online sync
 
