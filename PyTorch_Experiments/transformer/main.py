@@ -22,20 +22,21 @@ model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(devi
 
 criterion = nn.CrossEntropyLoss()
 
-
-# do_nc = False
-# clip = .5
-# lr = 5.0 # learning rate
-# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
-
-# adabelief similar to PTB hparams
+indep = False
 do_nc = True
 clip = None
-lr = .1
-optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
-scheduler = None
-ckpt_name = "ab" + ("-nc" if do_nc else "")
+lr = 5.0 # learning rate
+optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
+ckpt_name = "sgd" + ("-nc" if do_nc else "") + ("-clip%.2f" % clip if clip is not None else "") + ("-dep" if not indep else "")
+
+# # adabelief similar to PTB hparams
+# do_nc = True
+# clip = None
+# lr = .1
+# optimizer = AdaBelief(model.parameters(), lr, betas=(.9, .999), weight_decay=1.2e-6, eps=1e-8)
+# scheduler = None
+# ckpt_name = "ab" + ("-nc" if do_nc else "")
 
 def nump(tensor, device):
     if torch.cuda.is_available(): return tensor.detach().cpu().numpy() # makes a copy
@@ -75,6 +76,9 @@ def train():
         grad_sqnorm = sum([(g**2).sum() for g in grad])
         delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
 
+        if not indep: # just use dependent loss on current batch
+            loss_buffer = loss.item()
+
         # apply newton cap
         if do_nc and loss_buffer is not None and delt_dot_grad < 0:
             nc_ratio = - loss_buffer / delt_dot_grad
@@ -87,10 +91,11 @@ def train():
         newton_cap_log.append(
             (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item(), loss_buffer))
 
-        # recalculate loss after step on current minibatch for independence
-        with torch.no_grad():
-            output = model(data, src_mask)
-            loss_buffer = criterion(output.view(-1, ntokens), targets).item()
+        if indep:
+            # recalculate loss after step on current minibatch for independence
+            with torch.no_grad():
+                output = model(data, src_mask)
+                loss_buffer = criterion(output.view(-1, ntokens), targets).item()
 
         epoch_loss += loss.item()
         total_loss += loss.item()
