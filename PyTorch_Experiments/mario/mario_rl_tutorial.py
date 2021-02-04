@@ -205,9 +205,7 @@ class ResizeObservation(gym.ObservationWrapper):
         #     [T.Resize(self.shape), T.Normalize(0, 255)]
         # )
         # observation = transforms(observation).squeeze(0)
-        observation = observation[:,::3,::3]
-        transforms = T.Normalize(0, 255)
-        observation = transforms(observation).squeeze(0)
+        observation = observation[:,::3,::3].squeeze(0) / 255.
         # print(observation)
         # print(observation.shape)
         # input('..')
