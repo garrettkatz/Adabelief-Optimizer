@@ -23,12 +23,13 @@ model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(devi
 criterion = nn.CrossEntropyLoss()
 
 indep = False
-do_nc = True
-clip = None
+do_nc = False
+clip = .5
 lr = 5.0 # learning rate
 optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
 ckpt_name = "sgd" + ("-nc" if do_nc else "") + ("-clip%.2f" % clip if clip is not None else "") + ("-dep" if not indep else "")
+print(ckpt_name)
 
 # # adabelief similar to PTB hparams
 # do_nc = True
@@ -64,17 +65,19 @@ def train():
         loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
 
-        grad = [nump(param.grad, device) for param in model.parameters()]
-        old_data = [nump(param.data, device) for param in model.parameters()]
+        if do_nc:
+            grad = [nump(param.grad, device) for param in model.parameters()]
+            old_data = [nump(param.data, device) for param in model.parameters()]
 
         if clip is not None: torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        new_data = [nump(param.data, device) for param in model.parameters()]
-        delt = [nd - od for (nd, od) in zip(new_data, old_data)]
-        delt_sqnorm = sum([(d**2).sum() for d in delt])
-        grad_sqnorm = sum([(g**2).sum() for g in grad])
-        delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
+        if do_nc:
+            new_data = [nump(param.data, device) for param in model.parameters()]
+            delt = [nd - od for (nd, od) in zip(new_data, old_data)]
+            delt_sqnorm = sum([(d**2).sum() for d in delt])
+            grad_sqnorm = sum([(g**2).sum() for g in grad])
+            delt_dot_grad = sum([(d*g).sum() for (d,g) in zip(delt, grad)])
 
         if not indep: # just use dependent loss on current batch
             loss_buffer = loss.item()
@@ -88,8 +91,8 @@ def train():
                     param.data *= nc_ratio
                     param.data += torc(old_data[p] * (1 - nc_ratio), device)
 
-        newton_cap_log.append(
-            (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item(), loss_buffer))
+            newton_cap_log.append(
+                (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item(), loss_buffer))
 
         if indep:
             # recalculate loss after step on current minibatch for independence
