@@ -351,7 +351,7 @@ class Mario(Mario):  # subclassing for continuity
     def __init__(self, state_dim, action_dim, save_dir):
         super().__init__(state_dim, action_dim, save_dir)
         self.memory = deque(maxlen=100000)
-        self.batch_size = 64
+        self.batch_size = 32
 
     def cache(self, state, next_state, action, reward, done):
         """
@@ -539,11 +539,19 @@ $\theta_{target}$
 
 """
 
+def nump(tensor):
+    if torch.cuda.is_available(): return tensor.detach().cpu().numpy() # makes a copy
+    return tensor.detach().numpy().copy()
+
+def torc(ndarray):
+    if torch.cuda.is_available(): return torch.tensor(ndarray).cuda()
+    return torch.tensor(ndarray)
+
 class Mario(Mario):
     def __init__(self, state_dim, action_dim, save_dir):
         super().__init__(state_dim, action_dim, save_dir)
-        # lr = 0.00025 # original
-        lr = .025
+        lr = 0.00025 # original
+        # lr = .025 # more caps
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
         self.loss_fn = torch.nn.SmoothL1Loss()
         self.newton_cap_log = []
@@ -554,13 +562,13 @@ class Mario(Mario):
         loss.backward()
         
         if do_nc:
-            grad = [param.grad.clone() for param in self.net.online.parameters()]
-            old_data = [param.clone().detach() for param in self.net.online.parameters()]
+            grad = [nump(param.grad) for param in self.net.online.parameters()]
+            old_data = [nump(param.data) for param in self.net.online.parameters()]
 
         self.optimizer.step()
 
         if do_nc:
-            new_data = [param.clone().detach() for param in self.net.online.parameters()]
+            new_data = [nump(param.data) for param in self.net.online.parameters()]
             delt = [nd - od for (nd, od) in zip(new_data, old_data)]
             delt_sqnorm = sum([(d**2).sum().item() for d in delt])
             grad_sqnorm = sum([(g**2).sum().item() for g in grad])
@@ -574,7 +582,7 @@ class Mario(Mario):
                     msg += ": enforcing cap, ratio = %f" % nc_ratio
                     for p, param in enumerate(self.net.online.parameters()):
                         param.data *= nc_ratio
-                        param.data += old_data[p].data * (1 - nc_ratio)
+                        param.data += torc(old_data[p] * (1 - nc_ratio))
                 else:
                     msg += ": no cap, ratio = %f" % nc_ratio
             else:
@@ -621,7 +629,7 @@ class Mario(Mario):
 class Mario(Mario):
     def __init__(self, state_dim, action_dim, save_dir):
         super().__init__(state_dim, action_dim, save_dir)
-        self.burnin = 1e4  # min. experiences before training
+        self.burnin = 64 #1e4  # min. experiences before training
         self.learn_every = 3  # no. of experiences between updates to Q_online
         self.sync_every = 1e4  # no. of experiences between Q_target & Q_online sync
 
