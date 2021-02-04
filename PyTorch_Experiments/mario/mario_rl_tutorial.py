@@ -201,17 +201,24 @@ class ResizeObservation(gym.ObservationWrapper):
         self.observation_space = Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
     def observation(self, observation):
-        transforms = T.Compose(
-            [T.Resize(self.shape), T.Normalize(0, 255)]
-        )
+        # transforms = T.Compose(
+        #     [T.Resize(self.shape), T.Normalize(0, 255)]
+        # )
+        # observation = transforms(observation).squeeze(0)
+        observation = observation[:,::3,::3]
+        transforms = T.Normalize(0, 255)
         observation = transforms(observation).squeeze(0)
+        # print(observation)
+        # print(observation.shape)
+        # input('..')
         return observation
 
 
 # Apply Wrappers to environment
 env = SkipFrame(env, skip=4)
 env = GrayScaleObservation(env)
-env = ResizeObservation(env, shape=84)
+# env = ResizeObservation(env, shape=84)
+env = ResizeObservation(env, shape=(80,86))
 env = FrameStack(env, num_stack=4)
 
 """After applying the above wrappers to the environment, the final wrapped
@@ -439,7 +446,7 @@ class MarioNet(nn.Module):
             # nn.Flatten(),
             # nn.Linear(3136, 512),
             # nn.ReLU(),
-            nn.Linear(3136, 2048),
+            nn.Linear(2688, 2048), # read 2688 from shape mismatch error with new image size
             nn.ReLU(),
             nn.Linear(2048, 1024),
             nn.ReLU(),
@@ -615,7 +622,7 @@ class Mario(Mario):
 class Mario(Mario):
     def __init__(self, state_dim, action_dim, save_dir):
         super().__init__(state_dim, action_dim, save_dir)
-        self.burnin = 256 # 1e4  # min. experiences before training
+        self.burnin = 64 # 1e4  # min. experiences before training
         self.learn_every = 3  # no. of experiences between updates to Q_online
         self.sync_every = 1e4  # no. of experiences between Q_target & Q_online sync
 
