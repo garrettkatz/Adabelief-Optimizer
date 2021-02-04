@@ -179,8 +179,13 @@ class GrayScaleObservation(gym.ObservationWrapper):
 
     def observation(self, observation):
         observation = self.permute_orientation(observation)
-        transform = T.Grayscale()
-        observation = transform(observation)
+        # transform = T.Grayscale()
+        # observation = transform(observation)
+        observation = (
+            torch.tensor([0.299, 0.587, 0.114]).reshape(3,1,1)*observation
+            ).sum(dim=0).unsqueeze(0)
+        # print(observation)
+        # input("...")
         return observation
 
 
