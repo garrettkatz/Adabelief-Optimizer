@@ -366,6 +366,7 @@ class Mario(Mario):  # subclassing for continuity
         """
         state = state.__array__()
         next_state = next_state.__array__()
+        done = bool(done) # occassional Bytes cause some issues
 
         if self.use_cuda:
             state = torch.tensor(state).cuda()
@@ -511,7 +512,7 @@ class Mario(Mario):
     @torch.no_grad()
     def td_target(self, reward, next_state, done):
         next_state_Q = self.net(next_state, model="online")
-        best_action = torch.argmax(next_state_Q, axis=1)
+        best_action = torch.argmax(next_state_Q, dim=1)
         next_Q = self.net(next_state, model="target")[
             np.arange(0, self.batch_size), best_action
         ]
@@ -578,7 +579,7 @@ class Mario(Mario):
                     msg += ": no cap, ratio = %f" % nc_ratio
             else:
                 msg += ": no cap, ddg >= 0"
-            if self.curr_step % 12 == 0: print(msg)
+            if self.curr_step % 24 == 0: print(msg)
     
             self.newton_cap_log.append(
                 (delt_sqnorm, grad_sqnorm, delt_dot_grad, loss.item()))
